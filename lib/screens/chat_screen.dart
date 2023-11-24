@@ -3,6 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flash_chat_prishu/constants.dart';
 import 'package:flash_chat_prishu/screens/login_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+late User loggedInUser;
 
 class ChatScreen extends StatefulWidget {
   static const String id = 'chat_screen';
@@ -14,29 +17,29 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
-  late User loggedInUser;
   String messageText = '';
   final _messageTextEditingController = TextEditingController();
+  int a = 1;
 
   getCurrentUser() async {
     try {
       final user = await _auth.currentUser!;
       if (user != null) {
         loggedInUser = user;
-        print('Logged in User EmailId: ${loggedInUser.email}');
+        // print('Logged in User EmailId: ${loggedInUser.email}');
       }
     } catch (e) {
       print('Exception in Chat Screen: $e');
     }
   }
 
-  void messagesStream() async {
-    await for (var snapshot in _firestore.collection('messages').snapshots()) {
-      for (var message in snapshot.docs) {
-        print(message.data());
-      }
-    }
-  }
+  // void messagesStream() async {
+  //   await for (var snapshot in _firestore.collection('chats').snapshots()) {
+  //     for (var message in snapshot.docs) {
+  //       print(message.data());
+  //     }
+  //   }
+  // }
 
   @override
   void initState() {
@@ -47,6 +50,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    print('ab: $a');
     return Scaffold(
       appBar: AppBar(
         leading: null,
@@ -87,9 +91,11 @@ class _ChatScreenState extends State<ChatScreen> {
                     onPressed: () {
                       try {
                         //Implement send functionality.
-                        _firestore.collection('messages').add({
+                        _firestore.collection('chats').add({
                           'text': messageText,
-                          'sender': loggedInUser.email,
+                          'sender': loggedInUser!.email,
+                          'dttm': DateTime.now(),
+                          //DateFormat("dd-MM-yy HH:mm:ss").format(DateTime.now()),
                         });
                         _messageTextEditingController.clear();
                       } catch (e) {
@@ -122,7 +128,7 @@ class MessageStream extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder(
-      stream: _firestore.collection('messages').snapshots(),
+      stream: _firestore.collection('chats').orderBy('dttm', descending: true).snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return Column(
@@ -139,19 +145,28 @@ class MessageStream extends StatelessWidget {
             ],
           );
         }
+
         final messages = snapshot.data!.docs;
+        // final messages = snapshot.data!.docs.reversed;
         List<MessageBubble> messagesWidget = [];
         for (var message in messages) {
           final messageText = message.data()['text'];
           final messageSender = message.data()['sender'];
+          final datetm = DateFormat("dd-MM-yy HH:mm:ss").format(message.data()['dttm'].toDate());
+          final currentUser = loggedInUser!.email;
+          if (messageSender == currentUser) {}
+          // print('Curr User: $currentUser');
           final messageDocument = MessageBubble(
             messageSender: messageSender,
             messageText: messageText,
+            dttm: datetm,
+            isMe: messageSender == currentUser,
           );
           messagesWidget.add(messageDocument);
         }
         return Expanded(
           child: ListView(
+            reverse: true,
             children: messagesWidget,
           ),
         );
@@ -163,41 +178,57 @@ class MessageStream extends StatelessWidget {
 class MessageBubble extends StatelessWidget {
   const MessageBubble({
     super.key,
-    this.messageSender,
-    this.messageText,
+    required this.messageSender,
+    required this.messageText,
+    required this.dttm,
+    required this.isMe,
   });
 
-  final messageText, messageSender;
+  final messageText, messageSender, dttm;
+  final bool isMe;
 
   @override
   Widget build(BuildContext context) {
+    // print('isMe: $isMe');
     return Padding(
       padding: const EdgeInsets.all(7.0),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           Text(
             messageSender,
             style: TextStyle(
-              fontSize: 12.0,
+              fontSize: 18.0,
+            ),
+          ),
+          Text(
+            dttm.toString(),
+            style: TextStyle(
+              fontSize: 20.0,
             ),
           ),
           Padding(
             padding: const EdgeInsets.all(4.0),
             child: Material(
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(25.0),
-                bottomLeft: Radius.circular(25.0),
-                bottomRight: Radius.circular(25.0),
-              ),
+              borderRadius: isMe
+                  ? BorderRadius.only(
+                      topLeft: Radius.circular(25.0),
+                      bottomLeft: Radius.circular(25.0),
+                      bottomRight: Radius.circular(25.0),
+                    )
+                  : BorderRadius.only(
+                      topRight: Radius.circular(25.0),
+                      bottomLeft: Radius.circular(25.0),
+                      bottomRight: Radius.circular(25.0),
+                    ),
               elevation: 5.0,
-              color: Colors.lightBlueAccent,
+              color: isMe ? Colors.lightBlueAccent : Colors.pink.shade300,
               child: Padding(
                 padding: const EdgeInsets.all(10.0),
                 child: Text(
                   messageText,
                   style: TextStyle(
-                    fontSize: 18.0,
+                    fontSize: 27.0,
                     color: Colors.white,
                   ),
                 ),
